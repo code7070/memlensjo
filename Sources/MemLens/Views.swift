@@ -184,10 +184,7 @@ struct AppDetailView: View {
             if MonitorStore.isBrowser(group), let bundleID = group.bundleID {
                 TabsSection(bundleID: bundleID, group: group)
             }
-            Section("Processes · \(group.processes.count)") {
-                let titles = tabTitlesByProc
-                ForEach(group.processes) { ProcessRow(process: $0, tabTitles: titles[$0.id] ?? []) }
-            }
+            processSection
         }
         .navigationTitle(group.name)
         // On the List (not the Section) so it runs once per app, not once per row.
@@ -199,6 +196,43 @@ struct AppDetailView: View {
     }
 
     @Environment(MonitorStore.self) private var store
+    /// Selected process role; nil = all. Survives the 3 s refreshes.
+    @State private var filter: ProcessCategory?
+
+    @ViewBuilder
+    private var processSection: some View {
+        let categories = ProcessCategory.present(in: group.processes, keeping: filter)
+        let shown = filter.map { f in group.processes.filter { ProcessCategory(kind: $0.kind).id == f.id } }
+            ?? group.processes
+        Section {
+            let titles = tabTitlesByProc
+            ForEach(shown) { ProcessRow(process: $0, tabTitles: titles[$0.id] ?? []) }
+            if shown.isEmpty {
+                // The selection stays in the picker so the list can't silently narrow again when the role returns.
+                Text("No processes of this type right now").foregroundStyle(.secondary)
+            }
+        } header: {
+            HStack {
+                Text(filter == nil ? "Processes · \(group.processes.count)"
+                                   : "Processes · \(shown.count) of \(group.processes.count)")
+                Spacer()
+                if categories.count > 1 || filter != nil {
+                    // No counts in the items: titles that change every 3 s would reflow the open menu.
+                    Picker("Type", selection: $filter) {
+                        Text("All").tag(ProcessCategory?.none)
+                        Divider()
+                        ForEach(categories) { category in
+                            Text(category.label).tag(Optional(category))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .fixedSize()
+                }
+            }
+        }
+    }
 
     /// Process id → titles of the tabs the last measurement put in it.
     private var tabTitlesByProc: [String: [String]] {
@@ -259,33 +293,51 @@ struct KindBadge: View {
     let kind: String
 
     var body: some View {
-        Text(label)
+        let category = ProcessCategory(kind: kind)
+        Text(category.label)
             .font(.caption2.weight(.medium))
             .padding(.horizontal, 6).padding(.vertical, 1)
-            .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-            .foregroundStyle(color)
+            .background(category.color.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+            .foregroundStyle(category.color)
+    }
+}
+
+/// Display group for a Chromium/Electron process role: the badge and the process-type picker.
+struct ProcessCategory: Identifiable, Hashable {
+    /// Stable key, separate from the label so a raw kind can't collide with a named category.
+    let id: String
+    let label: String
+    let color: Color
+    /// Fixed position, so picker items don't reorder between refreshes.
+    let order: Int
+
+    init(kind: String?) {
+        let v: (id: String, label: String, color: Color, order: Int)
+        switch kind {
+        // No --type= argument: the browser's or Electron app's main process.
+        case nil: v = ("_main", "Main", .gray, 0)
+        case "renderer"?: v = ("renderer", "Tab / page", .blue, 1)
+        case "extension"?: v = ("extension", "Extension", .purple, 2)
+        case "gpu-process"?: v = ("gpu-process", "GPU", .orange, 3)
+        case "utility:network.mojom.NetworkService"?: v = ("network", "Network", .gray, 4)
+        case "utility:storage.mojom.StorageService"?: v = ("storage", "Storage", .gray, 5)
+        case "utility:audio.mojom.AudioService"?: v = ("audio", "Audio", .gray, 6)
+        case let k? where k.hasPrefix("utility"): v = ("_utility", "Utility", .gray, 7)
+        case let k?: v = ("raw:" + k, k, .gray, 8)
+        }
+        (id, label, color, order) = (v.id, v.label, v.color, v.order)
     }
 
-    private var label: String {
-        switch kind {
-        case "renderer": "Tab / page"
-        case "gpu-process": "GPU"
-        case "extension": "Extension"
-        case "utility:network.mojom.NetworkService": "Network"
-        case "utility:storage.mojom.StorageService": "Storage"
-        case "utility:audio.mojom.AudioService": "Audio"
-        case let k where k.hasPrefix("utility"): "Utility"
-        default: kind
+    /// Categories present in `processes`, in fixed order. A selected category that no longer
+    /// has processes is kept so the selection stays valid and visible.
+    static func present(in processes: [ProcSample], keeping selected: ProcessCategory?) -> [ProcessCategory] {
+        var byID: [String: ProcessCategory] = [:]
+        for process in processes {
+            let category = ProcessCategory(kind: process.kind)
+            byID[category.id] = category
         }
-    }
-
-    private var color: Color {
-        switch kind {
-        case "renderer": .blue
-        case "gpu-process": .orange
-        case "extension": .purple
-        default: .gray
-        }
+        if let selected { byID[selected.id] = selected }
+        return byID.values.sorted { ($0.order, $0.label) < ($1.order, $1.label) }
     }
 }
 
