@@ -199,7 +199,7 @@ actor ProcessSampler {
 
     // MARK: - System
 
-    private func systemStats() -> SystemStats {
+    func systemStats() -> SystemStats {
         var stats = SystemStats()
         stats.total = ProcessSampler.sysctlUInt64("hw.memsize") ?? 0
 

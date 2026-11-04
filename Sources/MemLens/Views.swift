@@ -10,14 +10,16 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
+            // Once per render, not once per row.
+            let maxFootprint = store.maxFootprint
             List {
                 Section {
                     SummaryHeader()
                 }
-                Section("Aplikasi") {
+                Section("Apps") {
                     ForEach(store.groups) { group in
                         NavigationLink(value: group.id) {
-                            AppRow(group: group, maxFootprint: store.maxFootprint)
+                            AppRow(group: group, maxFootprint: maxFootprint)
                         }
                     }
                 }
@@ -370,14 +372,22 @@ struct TabsSection: View {
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.secondary)
         case .done(let m):
-            TimelineView(.periodic(from: .now, by: 10)) { context in
-                // Tabs move between renderers on navigation; an old mapping can point at the wrong process.
-                let old = context.date.timeIntervalSince(m.measuredAt) > 300
-                Text("Diukur \(m.measuredAt.formatted(.relative(presentation: .named, unitsStyle: .wide).locale(Locale(identifier: "id_ID")))) · \(m.procIDByTab.count) tab cocok"
-                     + (old ? " · sudah lama, ukur ulang" : ""))
-                    .font(.caption).foregroundStyle(old ? .orange : .secondary)
+            // The clock only ticks while the popover is visible; a hidden detail page stays still.
+            if store.isPopoverOpen {
+                TimelineView(.periodic(from: .now, by: 10)) { context in measuredLine(m, now: context.date) }
+            } else {
+                measuredLine(m, now: .now)
             }
         }
+    }
+
+    private func measuredLine(_ m: TabMeasurement, now: Date) -> some View {
+        // Tabs move between renderers on navigation; an old mapping can point at the wrong process.
+        let old = now.timeIntervalSince(m.measuredAt) > 300
+        let when = m.measuredAt.formatted(.relative(presentation: .named, unitsStyle: .wide).locale(Locale(identifier: "en_US")))
+        return Text("Measured \(when) · \(plural(m.procIDByTab.count, "tab", "tabs")) matched"
+                    + (old ? " · outdated, measure again" : ""))
+            .font(.caption).foregroundStyle(old ? .orange : .secondary)
     }
 
     private func memory(for tab: BrowserTab, procs: [String: ProcSample], sharers: [String: Int]) -> TabMemory {

@@ -11,13 +11,14 @@ final class MonitorStore {
     private(set) var unreadableCount = 0
     private(set) var tabStates: [String: TabState] = [:]
 
-    /// Popover visible → sample every 3 s; hidden → every 15 s (menu bar label only).
+    /// Popover visible → full sample every 3 s; hidden → system totals every 15 s (menu bar label only).
     /// Driven by key-window notifications: MenuBarExtra keeps its content view alive,
     /// so onAppear/onDisappear can't be trusted for open/close.
     private(set) var isPopoverOpen = false {
         didSet {
             if isPopoverOpen && !oldValue {
                 wakeRequested = true
+                sleeper?.cancel()
                 refreshLoginItem()   // the user may have changed it in System Settings
             }
         }
@@ -29,7 +30,8 @@ final class MonitorStore {
 
     private let sampler = ProcessSampler()
     private var isSampling = false
-    private var wakeRequested = false
+    @ObservationIgnored private var wakeRequested = false
+    @ObservationIgnored private var sleeper: Task<Void, Never>?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var measureTasks: [String: Task<Void, Never>] = [:]
 
@@ -47,19 +49,28 @@ final class MonitorStore {
     var maxFootprint: UInt64 { groups.map(\.footprint).max() ?? 1 }
 
     /// Single sampling loop for the app's lifetime; a second caller returns immediately.
+    /// Popover hidden → only the system totals for the menu bar label, so the hidden list
+    /// isn't rebuilt; opening it cancels the sleep and does a full sample right away.
     func run() async {
         guard !isSampling else { return }
         isSampling = true
         defer { isSampling = false }
+        var needsFullSample = true   // fill the list once at launch so the first open isn't empty
         while !Task.isCancelled {
-            await refresh()
-            // Sleep in 1 s slices so opening the popover refreshes right away.
-            var waited = 0
-            while !Task.isCancelled, !wakeRequested, waited < (isPopoverOpen ? 3 : 15) {
-                try? await Task.sleep(for: .seconds(1))
-                waited += 1
-            }
             wakeRequested = false
+            if needsFullSample || isPopoverOpen {
+                await refresh()
+            } else {
+                system = await sampler.systemStats()
+            }
+            needsFullSample = false
+            // The popover may have opened during the refresh above.
+            if wakeRequested { continue }
+            let interval: Double = isPopoverOpen ? 3 : 15
+            let nap = Task<Void, Never> { _ = try? await Task.sleep(for: .seconds(interval), tolerance: .seconds(interval * 0.2)) }
+            sleeper = nap
+            await withTaskCancellationHandler { await nap.value } onCancel: { nap.cancel() }
+            sleeper = nil
         }
     }
 
