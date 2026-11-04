@@ -15,12 +15,12 @@ Requires Xcode (Swift 6) and macOS 14 or later.
 
 Sign with a stable identity (`SIGN_ID="<identity>" ./build.sh`) so macOS keeps the
 Automation and Accessibility permissions across rebuilds. `--install` refuses ad-hoc builds.
-"Launch at login" only works for the copy in `~/Applications` or `/Applications`.
+"Open at Login" only works for the copy in `~/Applications` or `/Applications`.
 
 ## Permissions
 
 - **Automation** (per browser): reads tab titles and URLs through Apple Events. Read-only.
-- **Accessibility**: only for "Ukur memory per tab". MemLens reads the browser's own
+- **Accessibility**: only for "Measure Tab Memory". MemLens reads the browser's own
   Task Manager window (Window → Task Manager), which you open yourself. It never presses
   or closes anything.
 
@@ -31,7 +31,7 @@ Automation and Accessibility permissions across rebuilds. `--install` refuses ad
   more than the RAM in use.
 - Processes owned by root (WindowServer, kernel_task) can't be read without admin rights.
 - Per-tab memory is the tab's main renderer process. Cross-site iframes run in separate
-  processes and aren't counted. Tabs that share a renderer show "dibagi N tab".
+  processes and aren't counted. Tabs that share a renderer show "shared by N tabs".
 - Incognito URLs are hidden. Safari URLs are always hidden because Safari doesn't flag
   private windows to AppleScript.
 - If the Task Manager layout isn't recognised, a redacted outline of its accessibility

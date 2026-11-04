@@ -116,7 +116,7 @@ final class MonitorStore {
         } catch TabReadError.notRunning {
             tabStates[bundleID] = .notRunning
         } catch TabReadError.timeout {
-            tabStates[bundleID] = .failed("Browser tidak merespons dalam waktu yang ditentukan.")
+            tabStates[bundleID] = .failed("The browser didn't respond in time.")
         } catch TabReadError.failed(let message) {
             tabStates[bundleID] = .failed(message)
         } catch {
@@ -154,7 +154,7 @@ extension MonitorStore {
         measureStates[bundleID] = .running
         await refresh()
         guard let group = groups.first(where: { $0.bundleID == bundleID }) else {
-            measureStates[bundleID] = .failed("Proses browser tidak ditemukan.")
+            measureStates[bundleID] = .failed("Couldn't find the browser's processes.")
             return
         }
         let procIDByPid = Dictionary(group.processes.map { ($0.pid, $0.id) }, uniquingKeysWith: { first, _ in first })
@@ -176,22 +176,22 @@ extension MonitorStore {
                 if match.ambiguous { ambiguous.insert(key) }
             }
             measureStates[bundleID] = procIDByTab.isEmpty
-                ? .failed("Task Manager terbaca, tapi tidak ada baris yang cocok dengan judul tab.")
+                ? .failed("Read the Task Manager, but no rows matched a tab title.")
                 : .done(TabMeasurement(measuredAt: Date(), procIDByTab: procIDByTab, ambiguousTabs: ambiguous))
         } catch TaskManagerReader.Failure.notTrusted {
             measureStates[bundleID] = .needsAccessibility
         } catch TaskManagerReader.Failure.windowNotFound {
             measureStates[bundleID] = .needsTaskManager
         } catch TaskManagerReader.Failure.tableNotFound(let dump), TaskManagerReader.Failure.noPidColumn(let dump) {
-            measureStates[bundleID] = .failed("Struktur Task Manager tidak dikenali."
-                + (dump.map { " Detail tersimpan di \($0.replacingOccurrences(of: NSHomeDirectory(), with: "~"))." } ?? ""))
+            measureStates[bundleID] = .failed("Task Manager layout not recognized."
+                + (dump.map { " Details saved to \($0.replacingOccurrences(of: NSHomeDirectory(), with: "~"))." } ?? ""))
         } catch TaskManagerReader.Failure.timeout {
-            measureStates[bundleID] = .failed("Task Manager tidak merespons.")
+            measureStates[bundleID] = .failed("Task Manager isn't responding.")
         } catch TabReadError.notAuthorized {
             tabStates[bundleID] = .notAuthorized
             measureStates[bundleID] = .idle
         } catch {
-            measureStates[bundleID] = .failed("Gagal membaca tab: \(error)")
+            measureStates[bundleID] = .failed("Couldn't read tabs: \(error)")
         }
     }
 

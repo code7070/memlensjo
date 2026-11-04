@@ -26,7 +26,7 @@ struct ContentView: View {
                 if let group = store.groups.first(where: { $0.id == id }) {
                     AppDetailView(group: group)
                 } else {
-                    ContentUnavailableView("Aplikasi sudah ditutup", systemImage: "xmark.app")
+                    ContentUnavailableView("App Has Quit", systemImage: "xmark.app")
                 }
             }
         }
@@ -49,23 +49,23 @@ struct Footer: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Toggle("Buka saat login", isOn: Binding(
+            Toggle("Open at Login", isOn: Binding(
                 get: { store.loginItem == .enabled || store.loginItem == .requiresApproval },
                 set: { store.setLoginItem($0) }
             ))
             .toggleStyle(.checkbox)
             .disabled(store.loginItem == .notInstalled)
             .help(store.loginItem == .notInstalled
-                  ? "Pasang dulu ke ~/Applications: ./build.sh --install"
-                  : (store.loginItemError ?? "Jalankan MemLens otomatis setelah login"))
+                  ? "Install to ~/Applications or /Applications first: ./build.sh --install"
+                  : (store.loginItemError ?? "Start MemLens automatically when you log in"))
             if store.loginItem == .requiresApproval {
-                Button("Setujui di Settings") { SMAppService.openSystemSettingsLoginItems() }
+                Button("Approve in Settings") { SMAppService.openSystemSettingsLoginItems() }
             }
             Spacer()
             Button("Activity Monitor") {
                 NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
             }
-            Button("Keluar") { NSApp.terminate(nil) }
+            Button("Quit") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         }
         .buttonStyle(.borderless)
@@ -74,7 +74,7 @@ struct Footer: View {
         .frame(maxWidth: .infinity)
         .overlay(alignment: .top) {
             if let error = store.loginItemError {
-                Text("Gagal mengatur buka saat login: \(error)")
+                Text("Couldn't change Open at Login: \(error)")
                     .font(.caption2).foregroundStyle(.red).lineLimit(2)
                     .padding(.horizontal, 12).offset(y: -18)
             }
@@ -93,18 +93,18 @@ struct SummaryHeader: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(Bytes.format(s.used)).font(.title2.weight(.semibold)).monospacedDigit()
-                Text("dari \(Bytes.format(s.total)) terpakai").foregroundStyle(.secondary)
+                Text("of \(Bytes.format(s.total)) used").foregroundStyle(.secondary)
             }
             ProgressView(value: Double(s.used), total: Double(max(s.total, 1)))
                 .tint(MonitorStore.pressureColor(s))
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 2) {
                 GridRow {
                     stat("App", s.appMemory)
-                    stat("Dikompres", s.compressed)
+                    stat("Compressed", s.compressed)
                 }
                 GridRow {
                     stat("Wired", s.wired)
-                    stat("Cache file", s.cached)
+                    stat("Cached Files", s.cached)
                 }
                 GridRow {
                     Text("Swap").foregroundStyle(.secondary)
@@ -113,7 +113,7 @@ struct SummaryHeader: View {
             }
             .font(.caption)
             if store.unreadableCount > 0 {
-                Text("\(store.unreadableCount) proses sistem tidak terbaca (butuh admin), mis. WindowServer.")
+                Text("\(plural(store.unreadableCount, "system process", "system processes")) can't be read without admin rights, e.g. WindowServer.")
                     .font(.caption2).foregroundStyle(.tertiary)
             }
         }
@@ -149,7 +149,7 @@ struct AppRow: View {
                         }
                 }
                 .frame(height: 4)
-                Text(group.processes.count == 1 ? "1 proses" : "\(group.processes.count) proses")
+                Text(plural(group.processes.count, "process", "processes"))
                     .font(.caption2).foregroundStyle(.tertiary)
             }
         }
@@ -182,7 +182,7 @@ struct AppDetailView: View {
             if MonitorStore.isBrowser(group), let bundleID = group.bundleID {
                 TabsSection(bundleID: bundleID, group: group)
             }
-            Section("Proses · \(group.processes.count)") {
+            Section("Processes · \(group.processes.count)") {
                 let titles = tabTitlesByProc
                 ForEach(group.processes) { ProcessRow(process: $0, tabTitles: titles[$0.id] ?? []) }
             }
@@ -206,7 +206,7 @@ struct AppDetailView: View {
         var result: [String: [String]] = [:]
         for tab in tabs {
             if let procID = measurement.procIDByTab[TabMeasurement.key(for: tab)] {
-                result[procID, default: []].append(tab.isPrivate ? "Tab incognito" : tab.title)
+                result[procID, default: []].append(tab.isPrivate ? "Private tab" : tab.title)
             }
         }
         return result
@@ -217,13 +217,13 @@ struct AppDetailView: View {
             AppIcon(path: group.bundlePath, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(group.name).font(.headline)
-                Text([group.version.map { "Versi \($0)" }, group.bundlePath].compactMap { $0 }.joined(separator: " · "))
+                Text([group.version.map { "Version \($0)" }, group.bundlePath].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Bytes.format(group.footprint)).font(.headline).monospacedDigit()
-                Text("jumlah \(group.processes.count) proses").font(.caption).foregroundStyle(.secondary)
+                Text("in \(plural(group.processes.count, "process", "processes"))").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -266,10 +266,10 @@ struct KindBadge: View {
 
     private var label: String {
         switch kind {
-        case "renderer": "Tab / halaman"
+        case "renderer": "Tab / page"
         case "gpu-process": "GPU"
-        case "extension": "Ekstensi"
-        case "utility:network.mojom.NetworkService": "Jaringan"
+        case "extension": "Extension"
+        case "utility:network.mojom.NetworkService": "Network"
         case "utility:storage.mojom.StorageService": "Storage"
         case "utility:audio.mojom.AudioService": "Audio"
         case let k where k.hasPrefix("utility"): "Utility"
@@ -311,16 +311,16 @@ struct TabsSection: View {
         } header: {
             HStack {
                 if case .loaded(let tabs) = store.tabStates[bundleID] {
-                    Text("Tab · \(tabs.count)")
+                    Text("Tabs · \(tabs.count)")
                 } else {
-                    Text("Tab")
+                    Text("Tabs")
                 }
                 Spacer()
                 if canMeasure {
                     Button {
                         store.measureTabs(bundleID: bundleID)
                     } label: {
-                        Label("Ukur memory per tab", systemImage: "gauge.with.dots.needle.50percent")
+                        Label("Measure Tab Memory", systemImage: "gauge.with.dots.needle.50percent")
                     }
                     .buttonStyle(.borderless)
                     .disabled(isRunning)
@@ -331,12 +331,12 @@ struct TabsSection: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Muat ulang daftar tab")
+                .help("Reload tab list")
             }
         } footer: {
             Text(canMeasure
-                 ? "Memory tab = proses renderer utamanya. Iframe lintas situs berjalan di proses terpisah dan tidak ikut terhitung."
-                 : "Safari tidak punya Task Manager, jadi memory per tab tidak tersedia.")
+                 ? "A tab's memory is its main renderer process. Cross-site iframes run in separate processes and aren't counted."
+                 : "Safari has no Task Manager, so per-tab memory isn't available.")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
     }
@@ -357,13 +357,13 @@ struct TabsSection: View {
         case .idle:
             EmptyView()
         case .running:
-            HStack { ProgressView().controlSize(.small); Text("Membaca Task Manager…").foregroundStyle(.secondary) }
+            HStack { ProgressView().controlSize(.small); Text("Reading Task Manager…").foregroundStyle(.secondary) }
         case .needsAccessibility:
             AccessibilityCard()
         case .needsTaskManager:
             VStack(alignment: .leading, spacing: 4) {
-                Label("Buka Task Manager browser dulu", systemImage: "list.bullet.rectangle").font(.headline)
-                Text("Di \(group.name): menu Window → Task Manager. Biarkan jendelanya terbuka, lalu tekan \"Ukur memory per tab\" lagi.")
+                Label("Open the Browser's Task Manager", systemImage: "list.bullet.rectangle").font(.headline)
+                Text("In \(group.name), choose Window → Task Manager. Keep it open, then click \"Measure Tab Memory\" again.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .padding(.vertical, 2)
@@ -393,15 +393,15 @@ struct TabsSection: View {
     private var content: some View {
         switch store.tabStates[bundleID] {
         case .none, .loading:
-            HStack { ProgressView().controlSize(.small); Text("Membaca tab…").foregroundStyle(.secondary) }
+            HStack { ProgressView().controlSize(.small); Text("Reading tabs…").foregroundStyle(.secondary) }
         case .notRunning:
-            Label("Browser tidak berjalan", systemImage: "moon.zzz").foregroundStyle(.secondary)
+            Label("Browser isn't running", systemImage: "moon.zzz").foregroundStyle(.secondary)
         case .notAuthorized:
             PermissionCard()
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
         case .loaded(let tabs) where tabs.isEmpty:
-            Text("Tidak ada tab").foregroundStyle(.secondary)
+            Text("No tabs").foregroundStyle(.secondary)
         case .loaded(let tabs):
             if let m = measurement {
                 // Measured: one list, biggest first.
@@ -414,7 +414,7 @@ struct TabsSection: View {
                 let windows = Dictionary(grouping: tabs, by: \.window).sorted { $0.key < $1.key }
                 ForEach(windows, id: \.key) { window, windowTabs in
                     if windows.count > 1 {
-                        Text("Jendela \(window) · \(windowTabs.count) tab")
+                        Text("Window \(window) · \(plural(windowTabs.count, "tab", "tabs"))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(windowTabs) { TabRow(tab: $0, memory: .unmeasured) }
@@ -438,13 +438,13 @@ struct TabRow: View {
             Image(systemName: tab.isPrivate ? "eyeglasses" : "globe")
                 .foregroundStyle(.secondary).frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
-                Text(tab.title.isEmpty ? "(tanpa judul)" : tab.title).lineLimit(1)
-                Text(tab.isPrivate ? "Incognito, URL disembunyikan" : (tab.url.isEmpty ? "URL tidak ditampilkan" : tab.host))
+                Text(tab.title.isEmpty ? "(Untitled)" : tab.title).lineLimit(1)
+                Text(tab.isPrivate ? "Private window, URL hidden" : (tab.url.isEmpty ? "URL not shown" : tab.host))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             if tab.isActive {
-                Text("Aktif").font(.caption2.weight(.medium))
+                Text("Active").font(.caption2.weight(.medium))
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
                     .foregroundStyle(.green)
@@ -460,16 +460,16 @@ struct TabRow: View {
         case .unmeasured:
             EmptyView()
         case .stale:
-            Text("ukur ulang").font(.caption2).foregroundStyle(.tertiary)
+            Text("measure again").font(.caption2).foregroundStyle(.tertiary)
         case .notFound:
-            Text("tidur / tak terukur").font(.caption2).foregroundStyle(.tertiary)
+            Text("asleep / not found").font(.caption2).foregroundStyle(.tertiary)
         case .bytes(let bytes, let sharedWith, let ambiguous):
             VStack(alignment: .trailing, spacing: 0) {
                 Text(Bytes.format(bytes)).monospacedDigit()
                 if ambiguous {
-                    Text("judul kembar, ambigu").font(.caption2).foregroundStyle(.orange)
+                    Text("ambiguous match").font(.caption2).foregroundStyle(.orange)
                 } else if sharedWith > 1 {
-                    Text("dibagi \(sharedWith) tab").font(.caption2).foregroundStyle(.secondary)
+                    Text("shared by \(sharedWith) tabs").font(.caption2).foregroundStyle(.secondary)
                 }
             }
         }
@@ -479,10 +479,10 @@ struct TabRow: View {
 struct AccessibilityCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("Izinkan MemLens di Accessibility", systemImage: "accessibility").font(.headline)
-            Text("MemLens perlu izin ini untuk membaca jendela Task Manager browser (hanya membaca, tidak menekan apa pun). Nyalakan MemLens di Privacy & Security → Accessibility. Kalau sudah diizinkan tapi belum jalan, keluar lalu buka lagi MemLens.")
+            Label("Allow MemLens in Accessibility", systemImage: "accessibility").font(.headline)
+            Text("MemLens needs this to read the browser's Task Manager window. It only reads and never clicks anything. Turn on MemLens in Privacy & Security → Accessibility. If it's already on but still not working, quit and reopen MemLens.")
                 .font(.caption).foregroundStyle(.secondary)
-            Button("Buka pengaturan Accessibility") {
+            Button("Open Accessibility Settings") {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                     NSWorkspace.shared.open(url)
                 }
@@ -495,12 +495,12 @@ struct AccessibilityCard: View {
 struct PermissionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("MemLens belum diizinkan membaca tab", systemImage: "lock.shield").font(.headline)
-            Text("Buka System Settings → Privacy & Security → Automation, lalu nyalakan browser ini di bawah MemLens. Kalau tidak muncul, jalankan di Terminal:")
+            Label("MemLens Can't Read Tabs Yet", systemImage: "lock.shield").font(.headline)
+            Text("Open System Settings → Privacy & Security → Automation and turn on this browser under MemLens. If it isn't listed, run this in Terminal:")
                 .font(.caption).foregroundStyle(.secondary)
             Text("tccutil reset AppleEvents id.underline.memlens")
                 .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-            Button("Buka pengaturan Automation") {
+            Button("Open Automation Settings") {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
                     NSWorkspace.shared.open(url)
                 }
@@ -508,4 +508,9 @@ struct PermissionCard: View {
         }
         .padding(.vertical, 4)
     }
+}
+
+/// "1 process", "3 processes".
+func plural(_ count: Int, _ singular: String, _ plural: String) -> String {
+    "\(count) \(count == 1 ? singular : plural)"
 }

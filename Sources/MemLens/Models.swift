@@ -94,7 +94,7 @@ enum LoginItemState: Equatable {
 }
 
 enum Bytes {
-    private static let locale = Locale(identifier: "id_ID")
+    private static let locale = Locale(identifier: "en_US")
 
     static func format(_ value: UInt64) -> String {
         let mb = Double(value) / 1_048_576

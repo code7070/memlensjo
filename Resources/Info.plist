@@ -27,6 +27,6 @@
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>MemLens membaca judul dan URL tab browser untuk ditampilkan. Tidak ada tab yang diubah dan tidak ada data yang dikirim.</string>
+    <string>MemLens reads browser tab titles and URLs to list them. It never changes tabs and sends no data anywhere.</string>
 </dict>
 </plist>

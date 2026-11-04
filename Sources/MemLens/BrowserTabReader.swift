@@ -125,7 +125,7 @@ enum BrowserTabReader {
         case -600: return .notRunning
         default:
             let message = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            return .failed(message.isEmpty ? "osascript gagal" : message)
+            return .failed(message.isEmpty ? "osascript failed" : message)
         }
     }
 
